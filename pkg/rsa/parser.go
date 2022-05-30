@@ -8,6 +8,11 @@ import (
 	"errors"
 )
 
+const (
+	PublicKeyTypeRSA     = "RSA PUBLIC KEY"
+	PublicKeyDefaultType = "PUBLIC KEY"
+)
+
 func GenerateRsaKeyPair() (*rsa.PrivateKey, *rsa.PublicKey) {
 	privkey, _ := rsa.GenerateKey(rand.Reader, 4096)
 	return privkey, &privkey.PublicKey
@@ -37,15 +42,33 @@ func ParseRsaPrivateKeyFromPemStr(privPEM []byte) (*rsa.PrivateKey, error) {
 
 // ParseRsaPublicKeyFromPemStr receive public key PKCS1 format
 func ParseRsaPublicKeyFromPemStr(pubPEM []byte) (*rsa.PublicKey, error) {
+	var (
+		publicKey *rsa.PublicKey
+		err       error
+	)
+
 	block, _ := pem.Decode(pubPEM)
 	if block == nil {
 		return nil, errors.New("failed to parse PEM block containing the key")
 	}
 
-	pub, err := x509.ParsePKCS1PublicKey(block.Bytes)
-	if err != nil {
-		return nil, err
+	switch block.Type {
+	case PublicKeyTypeRSA:
+		publicKey, err = x509.ParsePKCS1PublicKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+
+	case PublicKeyDefaultType:
+		pubAny, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+
+		if pubKey, ok := pubAny.(*rsa.PublicKey); ok {
+			publicKey = pubKey
+		}
 	}
 
-	return pub, nil
+	return publicKey, nil
 }
